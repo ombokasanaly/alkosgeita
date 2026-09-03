@@ -1,45 +1,676 @@
- "use client";
-import {useEffect,useMemo,useState} from "react";
-import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faGaugeHigh,faBed,faCalendarCheck,faWineGlass,faMoneyBillTransfer,faFileLines,faClockRotateLeft,faRightFromBracket,faPlus,faPen,faTrash,faXmark,faArrowLeft,faPrint,faCopy,faMagnifyingGlass} from "@fortawesome/free-solid-svg-icons";
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import {
+  faGaugeHigh,
+  faBed,
+  faCalendarCheck,
+  faWineGlass,
+  faMoneyBillTransfer,
+  faFileLines,
+  faClockRotateLeft,
+  faRightFromBracket,
+  faPlus,
+  faPen,
+  faTrash,
+  faXmark,
+  faArrowLeft,
+  faPrint,
+  faCopy,
+  faMagnifyingGlass,
+} from "@fortawesome/free-solid-svg-icons";
 
-const money=(n:number)=>new Intl.NumberFormat("en-TZ",{style:"currency",currency:"TZS",maximumFractionDigits:0}).format(n);
-type Room={_id:string,number:string,price:number,status:string,guestName?:string};
-type Tx={_id:string,type:string,amount:number,description:string,actorEmail?:string,createdAt:string};
+const money = (n: number) =>
+  new Intl.NumberFormat("en-TZ", {
+    style: "currency",
+    currency: "TZS",
+    maximumFractionDigits: 0,
+  }).format(n);
 
-export default function Page(){
- const [email,setEmail]=useState(""); const [logged,setLogged]=useState(false); const [tab,setTab]=useState("dashboard"); const [rooms,setRooms]=useState<Room[]>([]); const [tx,setTx]=useState<Tx[]>([]);
- const [summary,setSummary]=useState({revenue:0,expenses:0,profit:0,debt:0,occupancy:0,occupied:0,rooms:5,discounts:0});
- const [modal,setModal]=useState<string|null>(null); const [editing,setEditing]=useState<any>(null); const [toast,setToast]=useState(""); const [q,setQ]=useState("");
- const [form,setForm]=useState<any>({});
- const isAdmin=email.toLowerCase()==="alkos@geita.tz";
- const menu=[["dashboard","Dashboard",faGaugeHigh],["rooms","Rooms",faBed],["bookings","Bookings",faCalendarCheck],["bar","Bar POS",faWineGlass],["expenses","Expenses",faMoneyBillTransfer],["reports","Weekly Reports",faFileLines],["audit","Audit Log",faClockRotateLeft]];
- async function load(){const r=await fetch("/api/dashboard");if(r.ok){const d=await r.json();setSummary(d.summary);setRooms(d.rooms);setTx(d.transactions)}}
- useEffect(()=>{if(logged)load()},[logged]);
- async function save(url:string,body:any){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,actorEmail:email})});const d=await r.json();setToast(d.message||d.error||"Completed");setTimeout(()=>setToast(""),3000);if(r.ok){setModal(null);setEditing(null);setForm({});load()}}
- function open(m:string,data:any={}){setForm(data);setModal(m)}
- function logout(){setLogged(false);setEmail("");}
- if(!logged)return <div className="login"><div className="loginbox"><div className="loginbrand"><div className="loginmark">A</div>ALKOS</div><h1>Management Portal</h1><p className="subtitle">Secure operations dashboard for apartments, bar sales, expenses and weekly verification.</p><div className="field"><label>Staff Email</label><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="staff@alkos.tz"/></div><br/><button className="btn" style={{width:"100%",justifyContent:"center"}} onClick={()=>email.includes("@")&&setLogged(true)}>Sign In</button></div></div>;
- return <div className="app"><aside className="sidebar"><div className="brand"><div className="brandmark">A</div><span>ALKOS</span></div><div className="navgroup"><div className="navlabel">Management</div>{menu.map(([id,label,icon])=><button key={id} className={"navbtn "+(tab===id?"active":"")} onClick={()=>setTab(id)}><FontAwesomeIcon icon={icon as any}/><span>{label as string}</span></button>)}<div className="navlabel">Account</div><button className="navbtn" onClick={logout}><FontAwesomeIcon icon={faRightFromBracket}/><span>Sign out</span></button></div></aside>
- <section className="content"><header className="topbar"><div><b>ALKOS Apartments</b><div className="subtitle">{isAdmin?"Master Administrator":"Staff"} · {email}</div></div><div className="actions"><button className="btn secondary" onClick={()=>load()}><FontAwesomeIcon icon={faClockRotateLeft}/> Refresh</button></div></header><main className="main">
- {tab==="dashboard"&&<><div className="hero"><div className="heroText"><h1>ALKOS Management</h1><p>Luxury meets comfort · Geita</p></div></div><div className="grid">{[["Revenue",summary.revenue],["Expenses",summary.expenses],["Net Profit",summary.profit],["Outstanding Debt",summary.debt]].map(x=><div className="card" key={x[0] as string}><div className="metriclabel">{x[0] as string}</div><div className="metric">{money(x[1] as number)}</div></div>)}</div><div className="grid"><div className="card"><div className="metriclabel">Occupancy</div><div className="metric">{summary.occupancy}%</div></div><div className="card"><div className="metriclabel">Occupied Rooms</div><div className="metric">{summary.occupied} / {summary.rooms}</div></div><div className="card"><div className="metriclabel">Discounts Given</div><div className="metric">{money(summary.discounts)}</div></div><div className="card"><div className="metriclabel">Audit Window</div><div className="metric">7 Days</div></div></div></>}
- {tab==="rooms"&&<><Head title="Rooms" add={()=>open("room",{price:200000,status:"VACANT"})} label="Add Room"/><div className="card"><div className="tablewrap"><table className="table"><thead><tr><th>Room</th><th>Price</th><th>Status</th><th>Guest</th><th>Actions</th></tr></thead><tbody>{rooms.map(r=><tr key={r._id}><td>{r.number}</td><td>{money(r.price)}</td><td><span className={"badge "+(r.status==="OCCUPIED"?"red":"green")}>{r.status}</span></td><td>{r.guestName||"—"}</td><td><button className="btn secondary" onClick={()=>open("room",{...r})}><FontAwesomeIcon icon={faPen}/></button></td></tr>)}</tbody></table></div></div></>}
- {tab==="bookings"&&<><Head title="Guest Billing" add={()=>open("booking")} label="New Booking"/><div className="card"><p className="subtitle">Standard room rate: TZS 200,000 per day. Discounts and unpaid balances are tracked automatically.</p></div></>}
- {tab==="bar"&&<><Head title="Bar POS" add={()=>open("bar")} label="Record Sale"/><div className="card"><p className="subtitle">Record drinks as room charges or standalone cash sales.</p></div></>}
- {tab==="expenses"&&<><Head title="Expenses & Payroll" add={()=>open("expense")} label="Add Expense"/><div className="card"><p className="subtitle">Operational expenses are included automatically in weekly profit calculations.</p></div></>}
- {tab==="reports"&&<Reports setToast={setToast}/>}
- {tab==="audit"&&<><Head title="Audit Log"/><div className="card"><div className="field" style={{maxWidth:350,marginBottom:12}}><label>Search</label><div style={{display:"flex",gap:7}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search transactions"/><button className="btn secondary"><FontAwesomeIcon icon={faMagnifyingGlass}/></button></div></div><div className="tablewrap"><table className="table"><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Actor</th></tr></thead><tbody>{tx.filter(x=>(x.description||"").toLowerCase().includes(q.toLowerCase())).map(x=><tr key={x._id}><td>{new Date(x.createdAt).toLocaleString()}</td><td>{x.type}</td><td>{x.description}</td><td>{money(x.amount)}</td><td>{x.actorEmail||"—"}</td></tr>)}</tbody></table></div></div></>}
- </main></section>
- {modal&&<Modal title={modal==="room"?"Room":modal==="booking"?"New Booking":modal==="bar"?"Bar Sale":"Expense"} close={()=>setModal(null)}>
- {modal==="room"&&<RoomForm form={form} setForm={setForm} save={()=>save("/api/rooms",form)} isAdmin={isAdmin}/>}
- {modal==="booking"&&<BookingForm form={form} setForm={setForm} rooms={rooms} save={()=>save("/api/bookings",form)}/>}
- {modal==="bar"&&<SimpleForm fields={["description","amount","guest"]} form={form} setForm={setForm} save={()=>save("/api/bar",form)} labels={["Item / drink","Amount (TZS)","Guest / room (optional)"]}/>}
- {modal==="expense"&&<SimpleForm fields={["description","amount"]} form={form} setForm={setForm} save={()=>save("/api/expenses",form)} labels={["Description","Amount (TZS)"]}/>}
- </Modal>}{toast&&<div className="toast">{toast}</div>}</div>
+type Room = {
+  _id: string;
+  number: string;
+  price: number;
+  status: string;
+  guestName?: string;
+};
+
+type Tx = {
+  _id: string;
+  type: string;
+  amount: number;
+  description: string;
+  actorEmail?: string;
+  createdAt: string;
+};
+
+export default function Page() {
+  const [email, setEmail] = useState("");
+  const [logged, setLogged] = useState(false);
+  const [tab, setTab] = useState("dashboard");
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [tx, setTx] = useState<Tx[]>([]);
+  const [summary, setSummary] = useState({
+    revenue: 0,
+    expenses: 0,
+    profit: 0,
+    debt: 0,
+    occupancy: 0,
+    occupied: 0,
+    rooms: 5,
+    discounts: 0,
+  });
+  const [modal, setModal] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any>(null);
+  const [toast, setToast] = useState("");
+  const [q, setQ] = useState("");
+  const [form, setForm] = useState<any>({});
+  const isAdmin = email.toLowerCase() === "alkos@geita.tz";
+
+  const menu: [string, string, IconDefinition][] = [
+    ["dashboard", "Dashboard", faGaugeHigh],
+    ["rooms", "Rooms", faBed],
+    ["bookings", "Bookings", faCalendarCheck],
+    ["bar", "Bar POS", faWineGlass],
+    ["expenses", "Expenses", faMoneyBillTransfer],
+    ["reports", "Weekly Reports", faFileLines],
+    ["audit", "Audit Log", faClockRotateLeft],
+  ];
+
+  async function load() {
+    const r = await fetch("/api/dashboard");
+    if (r.ok) {
+      const d = await r.json();
+      setSummary(d.summary);
+      setRooms(d.rooms);
+      setTx(d.transactions);
+    }
+  }
+
+  useEffect(() => {
+    if (logged) load();
+  }, [logged]);
+
+  async function save(url: string, body: any) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, actorEmail: email }),
+    });
+    const d = await r.json();
+    setToast(d.message || d.error || "Completed");
+    setTimeout(() => setToast(""), 3000);
+    if (r.ok) {
+      setModal(null);
+      setEditing(null);
+      setForm({});
+      load();
+    }
+  }
+
+  function open(m: string, data: any = {}) {
+    setForm(data);
+    setModal(m);
+  }
+
+  function logout() {
+    setLogged(false);
+    setEmail("");
+  }
+
+  if (!logged)
+    return (
+      <div className="login">
+        <div className="loginbox">
+          <div className="loginbrand">
+            <div className="loginmark">A</div>ALKOS
+          </div>
+          <h1>Management Portal</h1>
+          <p className="subtitle">
+            Secure operations dashboard for apartments, bar sales, expenses and weekly verification.
+          </p>
+          <div className="field">
+            <label>Staff Email</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="staff@alkos.tz"
+            />
+          </div>
+          <br />
+          <button
+            className="btn"
+            style={{ width: "100%", justifyContent: "center" }}
+            onClick={() => email.includes("@") && setLogged(true)}
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brandmark">A</div>
+          <span>ALKOS</span>
+        </div>
+        <div className="navgroup">
+          <div className="navlabel">Management</div>
+          {menu.map(([id, label, icon]) => (
+            <button
+              key={id}
+              className={"navbtn " + (tab === id ? "active" : "")}
+              onClick={() => setTab(id)}
+            >
+              <FontAwesomeIcon icon={icon} />
+              <span>{label}</span>
+            </button>
+          ))}
+          <div className="navlabel">Account</div>
+          <button className="navbtn" onClick={logout}>
+            <FontAwesomeIcon icon={faRightFromBracket} />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </aside>
+      <section className="content">
+        <header className="topbar">
+          <div>
+            <b>ALKOS Apartments</b>
+            <div className="subtitle">
+              {isAdmin ? "Master Administrator" : "Staff"} · {email}
+            </div>
+          </div>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => load()}>
+              <FontAwesomeIcon icon={faClockRotateLeft} /> Refresh
+            </button>
+          </div>
+        </header>
+        <main className="main">
+          {tab === "dashboard" && (
+            <>
+              <div className="hero">
+                <div className="heroText">
+                  <h1>ALKOS Management</h1>
+                  <p>Luxury meets comfort · Geita</p>
+                </div>
+              </div>
+              <div className="grid">
+                {[
+                  ["Revenue", summary.revenue],
+                  ["Expenses", summary.expenses],
+                  ["Net Profit", summary.profit],
+                  ["Outstanding Debt", summary.debt],
+                ].map((x) => (
+                  <div className="card" key={x[0] as string}>
+                    <div className="metriclabel">{x[0] as string}</div>
+                    <div className="metric">{money(x[1] as number)}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid">
+                <div className="card">
+                  <div className="metriclabel">Occupancy</div>
+                  <div className="metric">{summary.occupancy}%</div>
+                </div>
+                <div className="card">
+                  <div className="metriclabel">Occupied Rooms</div>
+                  <div className="metric">
+                    {summary.occupied} / {summary.rooms}
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="metriclabel">Discounts Given</div>
+                  <div className="metric">{money(summary.discounts)}</div>
+                </div>
+                <div className="card">
+                  <div className="metriclabel">Audit Window</div>
+                  <div className="metric">7 Days</div>
+                </div>
+              </div>
+            </>
+          )}
+          {tab === "rooms" && (
+            <>
+              <Head
+                title="Rooms"
+                add={() => open("room", { price: 200000, status: "VACANT" })}
+                label="Add Room"
+              />
+              <div className="card">
+                <div className="tablewrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Room</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Guest</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rooms.map((r) => (
+                        <tr key={r._id}>
+                          <td>{r.number}</td>
+                          <td>{money(r.price)}</td>
+                          <td>
+                            <span
+                              className={
+                                "badge " + (r.status === "OCCUPIED" ? "red" : "green")
+                              }
+                            >
+                              {r.status}
+                            </span>
+                          </td>
+                          <td>{r.guestName || "—"}</td>
+                          <td>
+                            <button
+                              className="btn secondary"
+                              onClick={() => open("room", { ...r })}
+                            >
+                              <FontAwesomeIcon icon={faPen} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+          {tab === "bookings" && (
+            <>
+              <Head title="Guest Billing" add={() => open("booking")} label="New Booking" />
+              <div className="card">
+                <p className="subtitle">
+                  Standard room rate: TZS 200,000 per day. Discounts and unpaid balances are tracked automatically.
+                </p>
+              </div>
+            </>
+          )}
+          {tab === "bar" && (
+            <>
+              <Head title="Bar POS" add={() => open("bar")} label="Record Sale" />
+              <div className="card">
+                <p className="subtitle">Record drinks as room charges or standalone cash sales.</p>
+              </div>
+            </>
+          )}
+          {tab === "expenses" && (
+            <>
+              <Head title="Expenses & Payroll" add={() => open("expense")} label="Add Expense" />
+              <div className="card">
+                <p className="subtitle">
+                  Operational expenses are included automatically in weekly profit calculations.
+                </p>
+              </div>
+            </>
+          )}
+          {tab === "reports" && <Reports setToast={setToast} />}
+          {tab === "audit" && (
+            <>
+              <Head title="Audit Log" />
+              <div className="card">
+                <div className="field" style={{ maxWidth: 350, marginBottom: 12 }}>
+                  <label>Search</label>
+                  <div style={{ display: "flex", gap: 7 }}>
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Search transactions"
+                    />
+                    <button className="btn secondary">
+                      <FontAwesomeIcon icon={faMagnifyingGlass} />
+                    </button>
+                  </div>
+                </div>
+                <div className="tablewrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Actor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tx
+                        .filter((x) =>
+                          (x.description || "").toLowerCase().includes(q.toLowerCase())
+                        )
+                        .map((x) => (
+                          <tr key={x._id}>
+                            <td>{new Date(x.createdAt).toLocaleString()}</td>
+                            <td>{x.type}</td>
+                            <td>{x.description}</td>
+                            <td>{money(x.amount)}</td>
+                            <td>{x.actorEmail || "—"}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+      </section>
+      {modal && (
+        <Modal
+          title={
+            modal === "room"
+              ? "Room"
+              : modal === "booking"
+              ? "New Booking"
+              : modal === "bar"
+              ? "Bar Sale"
+              : "Expense"
+          }
+          close={() => setModal(null)}
+        >
+          {modal === "room" && (
+            <RoomForm
+              form={form}
+              setForm={setForm}
+              save={() => save("/api/rooms", form)}
+              isAdmin={isAdmin}
+              close={() => setModal(null)}
+            />
+          )}
+          {modal === "booking" && (
+            <BookingForm
+              form={form}
+              setForm={setForm}
+              rooms={rooms}
+              save={() => save("/api/bookings", form)}
+              close={() => setModal(null)}
+            />
+          )}
+          {modal === "bar" && (
+            <SimpleForm
+              fields={["description", "amount", "guest"]}
+              form={form}
+              setForm={setForm}
+              save={() => save("/api/bar", form)}
+              labels={["Item / drink", "Amount (TZS)", "Guest / room (optional)"]}
+              close={() => setModal(null)}
+            />
+          )}
+          {modal === "expense" && (
+            <SimpleForm
+              fields={["description", "amount"]}
+              form={form}
+              setForm={setForm}
+              save={() => save("/api/expenses", form)}
+              labels={["Description", "Amount (TZS)"]}
+              close={() => setModal(null)}
+            />
+          )}
+        </Modal>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
 }
-function Head({title,add,label}:{title:string,add?:()=>void,label?:string}){return <div className="sectionhead"><div><h1 className="title">{title}</h1><div className="subtitle">Manage and verify records</div></div>{add&&<button className="btn" onClick={add}><FontAwesomeIcon icon={faPlus}/>{label}</button>}</div>}
-function Modal({title,close,children}:{title:string,close:()=>void,children:React.ReactNode}){return <div className="modalback" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><div className="modalhead"><h2>{title}</h2><button className="iconbtn" onClick={close}><FontAwesomeIcon icon={faXmark}/></button></div>{children}</div></div>}
-function SimpleForm({fields,form,setForm,save,labels}:{fields:string[],form:any,setForm:any,save:()=>void,labels:string[]}){return <><div className="form">{fields.map((f,i)=><div className="field" key={f}><label>{labels[i]}</label><input type={f==="amount"?"number":"text"} value={form[f]||""} onChange={e=>setForm({...form,[f]:e.target.value})}/></div>)}</div><br/><div className="actions"><button className="btn secondary" onClick={()=>history.back()}><FontAwesomeIcon icon={faArrowLeft}/> Back</button><button className="btn" onClick={save}>Save</button></div></>}
-function RoomForm({form,setForm,save,isAdmin}:{form:any,setForm:any,save:()=>void,isAdmin:boolean}){return <><div className="form"><div className="field"><label>Room Number</label><input value={form.number||""} onChange={e=>setForm({...form,number:e.target.value})}/></div><div className="field"><label>Price (TZS)</label><input type="number" value={form.price??200000} onChange={e=>setForm({...form,price:e.target.value})}/></div><div className="field"><label>Status</label><select value={form.status||"VACANT"} onChange={e=>setForm({...form,status:e.target.value})}><option>VACANT</option><option>OCCUPIED</option></select></div></div><br/><div className="actions"><button className="btn secondary"><FontAwesomeIcon icon={faArrowLeft}/> Back</button><button className="btn" onClick={save}>Save</button>{isAdmin&&form._id&&<button className="btn danger" onClick={()=>alert("Delete endpoint can be enabled after confirming the master-admin deletion policy.")}><FontAwesomeIcon icon={faTrash}/> Delete</button>}</div></>}
-function BookingForm({form,setForm,rooms,save}:{form:any,setForm:any,rooms:Room[],save:()=>void}){return <><div className="form"><div className="field"><label>Guest Name</label><input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></div><div className="field"><label>Room</label><select value={form.room||""} onChange={e=>setForm({...form,room:e.target.value})}><option value="">Select room</option>{rooms.filter(r=>r.status==="VACANT").map(r=><option key={r.number}>{r.number}</option>)}</select></div><div className="field"><label>Days</label><input type="number" min="1" value={form.days||1} onChange={e=>setForm({...form,days:e.target.value})}/></div><div className="field"><label>Discount (TZS)</label><input type="number" value={form.discount||0} onChange={e=>setForm({...form,discount:e.target.value})}/></div><div className="field"><label>Payment Received (TZS)</label><input type="number" value={form.paid||0} onChange={e=>setForm({...form,paid:e.target.value})}/></div></div><br/><div className="actions"><button className="btn secondary"><FontAwesomeIcon icon={faArrowLeft}/> Back</button><button className="btn" onClick={save}>Confirm & Save</button></div></>}
-function Reports({setToast}:{setToast:any}){async function copy(){const r=await fetch("/api/reports/weekly?format=text");const t=await r.text();await navigator.clipboard.writeText(t);setToast("Weekly report copied");setTimeout(()=>setToast(""),2500)}return <><Head title="Weekly Reports"/><div className="grid"><div className="card"><div className="metriclabel">Audit Cycle</div><div className="metric">7 Days</div><p className="subtitle">Automatically arranged by rolling seven-day window.</p></div></div><div className="card section"><div className="actions"><button className="btn" onClick={()=>window.open("/api/reports/weekly","_blank")}><FontAwesomeIcon icon={faPrint}/> View / Print</button><button className="btn secondary" onClick={copy}><FontAwesomeIcon icon={faCopy}/> Copy Report</button></div></div></>}
+
+function Head({ title, add, label }: { title: string; add?: () => void; label?: string }) {
+  return (
+    <div className="sectionhead">
+      <div>
+        <h1 className="title">{title}</h1>
+        <div className="subtitle">Manage and verify records</div>
+      </div>
+      {add && (
+        <button className="btn" onClick={add}>
+          <FontAwesomeIcon icon={faPlus} />
+          {label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Modal({ title, close, children }: { title: string; close: () => void; children: React.ReactNode }) {
+  return (
+    <div className="modalback" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="modal">
+        <div className="modalhead">
+          <h2>{title}</h2>
+          <button className="iconbtn" onClick={close}>
+            <FontAwesomeIcon icon={faXmark} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SimpleForm({
+  fields,
+  form,
+  setForm,
+  save,
+  labels,
+  close,
+}: {
+  fields: string[];
+  form: any;
+  setForm: any;
+  save: () => void;
+  labels: string[];
+  close?: () => void;
+}) {
+  return (
+    <>
+      <div className="form">
+        {fields.map((f, i) => (
+          <div className="field" key={f}>
+            <label>{labels[i]}</label>
+            <input
+              type={f === "amount" ? "number" : "text"}
+              value={form[f] || ""}
+              onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+            />
+          </div>
+        ))}
+      </div>
+      <br />
+      <div className="actions">
+        {close && (
+          <button className="btn secondary" onClick={close}>
+            <FontAwesomeIcon icon={faArrowLeft} /> Back
+          </button>
+        )}
+        <button className="btn" onClick={save}>
+          Save
+        </button>
+      </div>
+    </>
+  );
+}
+
+function RoomForm({
+  form,
+  setForm,
+  save,
+  isAdmin,
+  close,
+}: {
+  form: any;
+  setForm: any;
+  save: () => void;
+  isAdmin: boolean;
+  close?: () => void;
+}) {
+  return (
+    <>
+      <div className="form">
+        <div className="field">
+          <label>Room Number</label>
+          <input
+            value={form.number || ""}
+            onChange={(e) => setForm({ ...form, number: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Price (TZS)</label>
+          <input
+            type="number"
+            value={form.price ?? 200000}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Status</label>
+          <select
+            value={form.status || "VACANT"}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <option>VACANT</option>
+            <option>OCCUPIED</option>
+          </select>
+        </div>
+      </div>
+      <br />
+      <div className="actions">
+        {close && (
+          <button className="btn secondary" onClick={close}>
+            <FontAwesomeIcon icon={faArrowLeft} /> Back
+          </button>
+        )}
+        <button className="btn" onClick={save}>
+          Save
+        </button>
+        {isAdmin && form._id && (
+          <button
+            className="btn danger"
+            onClick={() =>
+              alert("Delete endpoint can be enabled after confirming the master-admin deletion policy.")
+            }
+          >
+            <FontAwesomeIcon icon={faTrash} /> Delete
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function BookingForm({
+  form,
+  setForm,
+  rooms,
+  save,
+  close,
+}: {
+  form: any;
+  setForm: any;
+  rooms: Room[];
+  save: () => void;
+  close?: () => void;
+}) {
+  return (
+    <>
+      <div className="form">
+        <div className="field">
+          <label>Guest Name</label>
+          <input
+            value={form.name || ""}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Room</label>
+          <select
+            value={form.room || ""}
+            onChange={(e) => setForm({ ...form, room: e.target.value })}
+          >
+            <option value="">Select room</option>
+            {rooms
+              .filter((r) => r.status === "VACANT")
+              .map((r) => (
+                <option key={r.number}>{r.number}</option>
+              ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>Days</label>
+          <input
+            type="number"
+            min="1"
+            value={form.days || 1}
+            onChange={(e) => setForm({ ...form, days: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Discount (TZS)</label>
+          <input
+            type="number"
+            value={form.discount || 0}
+            onChange={(e) => setForm({ ...form, discount: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>Payment Received (TZS)</label>
+          <input
+            type="number"
+            value={form.paid || 0}
+            onChange={(e) => setForm({ ...form, paid: e.target.value })}
+          />
+        </div>
+      </div>
+      <br />
+      <div className="actions">
+        {close && (
+          <button className="btn secondary" onClick={close}>
+            <FontAwesomeIcon icon={faArrowLeft} /> Back
+          </button>
+        )}
+        <button className="btn" onClick={save}>
+          Confirm & Save
+        </button>
+      </div>
+    </>
+  );
+}
+
+function Reports({ setToast }: { setToast: any }) {
+  async function copy() {
+    const r = await fetch("/api/reports/weekly?format=text");
+    const t = await r.text();
+    await navigator.clipboard.writeText(t);
+    setToast("Weekly report copied");
+    setTimeout(() => setToast(""), 2500);
+  }
+  return (
+    <>
+      <Head title="Weekly Reports" />
+      <div className="grid">
+        <div className="card">
+          <div className="metriclabel">Audit Cycle</div>
+          <div className="metric">7 Days</div>
+          <p className="subtitle">Automatically arranged by rolling seven-day window.</p>
+        </div>
+      </div>
+      <div className="card section">
+        <div className="actions">
+          <button className="btn" onClick={() => window.open("/api/reports/weekly", "_blank")}>
+            <FontAwesomeIcon icon={faPrint} /> View / Print
+          </button>
+          <button className="btn secondary" onClick={copy}>
+            <FontAwesomeIcon icon={faCopy} /> Copy Report
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
