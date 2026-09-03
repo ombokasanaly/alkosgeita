@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-
+import { useEffect, useState, type ReactNode } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faGaugeHigh,
@@ -30,15 +28,15 @@ import {
 type Room = {
   _id?: string;
   number: string;
-  price: number;
+  price: number | string;
   status: string;
   guestName?: string;
 };
 
 type Tx = {
-  _id: string;
+  _id?: string;
   type: string;
-  amount: number;
+  amount: number | string;
   description: string;
   actorEmail?: string;
   createdAt: string;
@@ -55,33 +53,77 @@ type Summary = {
   discounts: number;
 };
 
-type FormData = Record<string, any>;
-
 type MenuItem = {
   id: string;
   label: string;
-  icon: any;
+  icon: typeof faGaugeHigh;
 };
+
+type FormData = Record<string, string | number | undefined>;
 
 /* =========================
    HELPERS
 ========================= */
 
-const money = (n: number) =>
-  new Intl.NumberFormat("en-TZ", {
+const money = (value: number | string | undefined | null): string => {
+  const amount = Number(value ?? 0);
+
+  return new Intl.NumberFormat("en-TZ", {
     style: "currency",
     currency: "TZS",
     maximumFractionDigits: 0,
-  }).format(Number(n) || 0);
+  }).format(Number.isFinite(amount) ? amount : 0);
+};
 
 /* =========================
-   PAGE
+   MENU
+========================= */
+
+const menu: MenuItem[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: faGaugeHigh,
+  },
+  {
+    id: "rooms",
+    label: "Rooms",
+    icon: faBed,
+  },
+  {
+    id: "bookings",
+    label: "Bookings",
+    icon: faCalendarCheck,
+  },
+  {
+    id: "bar",
+    label: "Bar POS",
+    icon: faWineGlass,
+  },
+  {
+    id: "expenses",
+    label: "Expenses",
+    icon: faMoneyBillTransfer,
+  },
+  {
+    id: "reports",
+    label: "Weekly Reports",
+    icon: faFileLines,
+  },
+  {
+    id: "audit",
+    label: "Audit Log",
+    icon: faClockRotateLeft,
+  },
+];
+
+/* =========================
+   MAIN PAGE
 ========================= */
 
 export default function Page() {
   const [email, setEmail] = useState("");
   const [logged, setLogged] = useState(false);
-
   const [tab, setTab] = useState("dashboard");
 
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -99,60 +141,12 @@ export default function Page() {
   });
 
   const [modal, setModal] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Room | null>(null);
   const [toast, setToast] = useState("");
   const [q, setQ] = useState("");
 
   const [form, setForm] = useState<FormData>({});
 
-  /* =========================
-     ADMIN
-  ========================= */
-
-  const isAdmin =
-    email.trim().toLowerCase() === "alkos@geita.tz";
-
-  /* =========================
-     MENU
-  ========================= */
-
-  const menu: MenuItem[] = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: faGaugeHigh,
-    },
-    {
-      id: "rooms",
-      label: "Rooms",
-      icon: faBed,
-    },
-    {
-      id: "bookings",
-      label: "Bookings",
-      icon: faCalendarCheck,
-    },
-    {
-      id: "bar",
-      label: "Bar POS",
-      icon: faWineGlass,
-    },
-    {
-      id: "expenses",
-      label: "Expenses",
-      icon: faMoneyBillTransfer,
-    },
-    {
-      id: "reports",
-      label: "Weekly Reports",
-      icon: faFileLines,
-    },
-    {
-      id: "audit",
-      label: "Audit Log",
-      icon: faClockRotateLeft,
-    },
-  ];
+  const isAdmin = email.trim().toLowerCase() === "alkos@geita.tz";
 
   /* =========================
      LOAD DASHBOARD
@@ -166,34 +160,49 @@ export default function Page() {
       });
 
       if (!response.ok) {
-        setToast("Failed to load dashboard");
-        return;
+        throw new Error("Failed to load dashboard");
       }
 
       const data = await response.json();
 
       if (data.summary) {
-        setSummary(data.summary);
+        setSummary({
+          revenue: Number(data.summary.revenue ?? 0),
+          expenses: Number(data.summary.expenses ?? 0),
+          profit: Number(data.summary.profit ?? 0),
+          debt: Number(data.summary.debt ?? 0),
+          occupancy: Number(data.summary.occupancy ?? 0),
+          occupied: Number(data.summary.occupied ?? 0),
+          rooms: Number(data.summary.rooms ?? 5),
+          discounts: Number(data.summary.discounts ?? 0),
+        });
       }
 
-      if (Array.isArray(data.rooms)) {
-        setRooms(data.rooms);
-      }
-
-      if (Array.isArray(data.transactions)) {
-        setTx(data.transactions);
-      }
+      setRooms(Array.isArray(data.rooms) ? data.rooms : []);
+      setTx(Array.isArray(data.transactions) ? data.transactions : []);
     } catch (error) {
-      console.error(error);
-      setToast("Server connection failed");
+      console.error("Dashboard load error:", error);
+      showToast("Failed to load dashboard");
     }
   }
 
   useEffect(() => {
     if (logged) {
-      load();
+      void load();
     }
   }, [logged]);
+
+  /* =========================
+     TOAST
+  ========================= */
+
+  function showToast(message: string) {
+    setToast(message);
+
+    window.setTimeout(() => {
+      setToast("");
+    }, 3000);
+  }
 
   /* =========================
      SAVE
@@ -212,31 +221,28 @@ export default function Page() {
         }),
       });
 
-      const data = await response.json();
+      let data: { message?: string; error?: string } = {};
 
-      setToast(
-        data.message ||
-          data.error ||
-          (response.ok ? "Completed successfully" : "Something went wrong")
-      );
-
-      setTimeout(() => {
-        setToast("");
-      }, 3000);
-
-      if (response.ok) {
-        setModal(null);
-        setEditing(null);
-        setForm({});
-        await load();
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
-    } catch (error) {
-      console.error(error);
-      setToast("Unable to connect to server");
 
-      setTimeout(() => {
-        setToast("");
-      }, 3000);
+      if (!response.ok) {
+        showToast(data.error || "Operation failed");
+        return;
+      }
+
+      showToast(data.message || "Completed successfully");
+
+      setModal(null);
+      setForm({});
+
+      await load();
+    } catch (error) {
+      console.error("Save error:", error);
+      showToast("Network error. Please try again.");
     }
   }
 
@@ -244,7 +250,7 @@ export default function Page() {
      OPEN MODAL
   ========================= */
 
-  function open(
+  function openModal(
     modalName: string,
     data: FormData = {}
   ) {
@@ -258,7 +264,6 @@ export default function Page() {
 
   function closeModal() {
     setModal(null);
-    setEditing(null);
     setForm({});
   }
 
@@ -270,10 +275,24 @@ export default function Page() {
     setLogged(false);
     setEmail("");
     setTab("dashboard");
-    setRooms([]);
-    setTx([]);
-    setForm({});
     setModal(null);
+    setForm({});
+  }
+
+  /* =========================
+     LOGIN
+  ========================= */
+
+  function handleLogin() {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      showToast("Enter a valid email address");
+      return;
+    }
+
+    setEmail(cleanEmail);
+    setLogged(true);
   }
 
   /* =========================
@@ -284,65 +303,52 @@ export default function Page() {
     return (
       <div className="login">
         <div className="loginbox">
-
           <div className="loginbrand">
-            <div className="loginmark">
-              A
-            </div>
-
+            <div className="loginmark">A</div>
             ALKOS
           </div>
 
-          <h1>
-            Management Portal
-          </h1>
+          <h1>Management Portal</h1>
 
           <p className="subtitle">
-            Secure operations dashboard for apartments,
-            bar sales, expenses and weekly verification.
+            Secure operations dashboard for apartments, bar sales,
+            expenses and weekly verification.
           </p>
 
           <div className="field">
-            <label>
-              Staff Email
-            </label>
+            <label htmlFor="staff-email">Staff Email</label>
 
             <input
+              id="staff-email"
               type="email"
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
-              placeholder="staff@alkos.tz"
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  email.includes("@")
-                ) {
-                  setLogged(true);
+              onChange={(event) => setEmail(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleLogin();
                 }
               }}
+              placeholder="staff@alkos.tz"
+              autoComplete="email"
             />
           </div>
 
           <br />
 
           <button
+            type="button"
             className="btn"
             style={{
               width: "100%",
               justifyContent: "center",
             }}
-            onClick={() => {
-              if (email.includes("@")) {
-                setLogged(true);
-              }
-            }}
+            onClick={handleLogin}
           >
             Sign In
           </button>
-
         </div>
+
+        {toast && <div className="toast">{toast}</div>}
       </div>
     );
   }
@@ -353,81 +359,50 @@ export default function Page() {
 
   return (
     <div className="app">
-
       {/* SIDEBAR */}
-
       <aside className="sidebar">
-
         <div className="brand">
-          <div className="brandmark">
-            A
-          </div>
-
-          <span>
-            ALKOS
-          </span>
+          <div className="brandmark">A</div>
+          <span>ALKOS</span>
         </div>
 
         <div className="navgroup">
-
-          <div className="navlabel">
-            Management
-          </div>
+          <div className="navlabel">Management</div>
 
           {menu.map((item) => (
             <button
+              type="button"
               key={item.id}
               className={
                 "navbtn " +
                 (tab === item.id ? "active" : "")
               }
-              onClick={() =>
-                setTab(item.id)
-              }
+              onClick={() => setTab(item.id)}
             >
-              <FontAwesomeIcon
-                icon={item.icon}
-              />
-
-              <span>
-                {item.label}
-              </span>
+              <FontAwesomeIcon icon={item.icon} />
+              <span>{item.label}</span>
             </button>
           ))}
 
-          <div className="navlabel">
-            Account
-          </div>
+          <div className="navlabel">Account</div>
 
           <button
+            type="button"
             className="navbtn"
             onClick={logout}
           >
-            <FontAwesomeIcon
-              icon={faRightFromBracket}
-            />
-
-            <span>
-              Sign out
-            </span>
+            <FontAwesomeIcon icon={faRightFromBracket} />
+            <span>Sign out</span>
           </button>
-
         </div>
-
       </aside>
 
       {/* CONTENT */}
-
       <section className="content">
-
-        {/* TOPBAR */}
-
+        {/* TOP BAR */}
         <header className="topbar">
-
           <div>
-            <b>
-              ALKOS Apartments
-            </b>
+            <b>ALKOS Apartments</b>
 
             <div className="subtitle">
               {isAdmin
@@ -438,48 +413,31 @@ export default function Page() {
           </div>
 
           <div className="actions">
-
             <button
+              type="button"
               className="btn secondary"
-              onClick={load}
+              onClick={() => void load()}
             >
-              <FontAwesomeIcon
-                icon={faClockRotateLeft}
-              />
-
+              <FontAwesomeIcon icon={faClockRotateLeft} />
               Refresh
             </button>
-
           </div>
-
         </header>
 
         {/* MAIN */}
-
         <main className="main">
-
           {/* ================= DASHBOARD ================= */}
 
           {tab === "dashboard" && (
             <>
               <div className="hero">
-
                 <div className="heroText">
-
-                  <h1>
-                    ALKOS Management
-                  </h1>
-
-                  <p>
-                    Luxury meets comfort · Geita
-                  </p>
-
+                  <h1>ALKOS Management</h1>
+                  <p>Luxury meets comfort · Geita</p>
                 </div>
-
               </div>
 
               <div className="grid">
-
                 <MetricCard
                   label="Revenue"
                   value={money(summary.revenue)}
@@ -499,11 +457,9 @@ export default function Page() {
                   label="Outstanding Debt"
                   value={money(summary.debt)}
                 />
-
               </div>
 
               <div className="grid">
-
                 <MetricCard
                   label="Occupancy"
                   value={`${summary.occupancy}%`}
@@ -523,7 +479,6 @@ export default function Page() {
                   label="Audit Window"
                   value="7 Days"
                 />
-
               </div>
             </>
           )}
@@ -535,7 +490,7 @@ export default function Page() {
               <Head
                 title="Rooms"
                 add={() =>
-                  open("room", {
+                  openModal("room", {
                     price: 200000,
                     status: "VACANT",
                   })
@@ -544,68 +499,40 @@ export default function Page() {
               />
 
               <div className="card">
-
                 <div className="tablewrap">
-
                   <table className="table">
-
                     <thead>
                       <tr>
-                        <th>
-                          Room
-                        </th>
-
-                        <th>
-                          Price
-                        </th>
-
-                        <th>
-                          Status
-                        </th>
-
-                        <th>
-                          Guest
-                        </th>
-
-                        <th>
-                          Actions
-                        </th>
+                        <th>Room</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Guest</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
 
                     <tbody>
-
                       {rooms.length === 0 ? (
                         <tr>
-                          <td
-                            colSpan={5}
-                            style={{
-                              textAlign: "center",
-                              padding: 30,
-                            }}
-                          >
+                          <td colSpan={5}>
                             No rooms found.
                           </td>
                         </tr>
                       ) : (
-                        rooms.map((room) => (
+                        rooms.map((room, index) => (
                           <tr
                             key={
-                              room._id ||
-                              room.number
+                              room._id ??
+                              `${room.number}-${index}`
                             }
                           >
-
-                            <td>
-                              {room.number}
-                            </td>
+                            <td>{room.number}</td>
 
                             <td>
                               {money(room.price)}
                             </td>
 
                             <td>
-
                               <span
                                 className={
                                   "badge " +
@@ -617,44 +544,33 @@ export default function Page() {
                               >
                                 {room.status}
                               </span>
-
                             </td>
 
                             <td>
-                              {room.guestName ||
-                                "—"}
+                              {room.guestName || "—"}
                             </td>
 
                             <td>
-
                               <button
+                                type="button"
                                 className="btn secondary"
-                                onClick={() => {
-                                  setEditing(room);
-
-                                  open(
-                                    "room",
-                                    room
-                                  );
-                                }}
+                                onClick={() =>
+                                  openModal("room", {
+                                    ...room,
+                                  })
+                                }
                               >
                                 <FontAwesomeIcon
                                   icon={faPen}
                                 />
                               </button>
-
                             </td>
-
                           </tr>
                         ))
                       )}
-
                     </tbody>
-
                   </table>
-
                 </div>
-
               </div>
             </>
           )}
@@ -665,22 +581,16 @@ export default function Page() {
             <>
               <Head
                 title="Guest Billing"
-                add={() =>
-                  open("booking")
-                }
+                add={() => openModal("booking")}
                 label="New Booking"
               />
 
               <div className="card">
-
                 <p className="subtitle">
-                  Standard room rate:
-                  TZS 200,000 per day.
-                  Discounts and unpaid
-                  balances are tracked
-                  automatically.
+                  Standard room rate: TZS 200,000 per
+                  day. Discounts and unpaid balances are
+                  tracked automatically.
                 </p>
-
               </div>
             </>
           )}
@@ -691,20 +601,15 @@ export default function Page() {
             <>
               <Head
                 title="Bar POS"
-                add={() =>
-                  open("bar")
-                }
+                add={() => openModal("bar")}
                 label="Record Sale"
               />
 
               <div className="card">
-
                 <p className="subtitle">
-                  Record drinks as room
-                  charges or standalone
-                  cash sales.
+                  Record drinks as room charges or
+                  standalone cash sales.
                 </p>
-
               </div>
             </>
           )}
@@ -715,20 +620,16 @@ export default function Page() {
             <>
               <Head
                 title="Expenses & Payroll"
-                add={() =>
-                  open("expense")
-                }
+                add={() => openModal("expense")}
                 label="Add Expense"
               />
 
               <div className="card">
-
                 <p className="subtitle">
-                  Operational expenses are
-                  included automatically in
-                  weekly profit calculations.
+                  Operational expenses are included
+                  automatically in weekly profit
+                  calculations.
                 </p>
-
               </div>
             </>
           )}
@@ -736,9 +637,7 @@ export default function Page() {
           {/* ================= REPORTS ================= */}
 
           {tab === "reports" && (
-            <Reports
-              setToast={setToast}
-            />
+            <Reports setToast={showToast} />
           )}
 
           {/* ================= AUDIT ================= */}
@@ -748,7 +647,6 @@ export default function Page() {
               <Head title="Audit Log" />
 
               <div className="card">
-
                 <div
                   className="field"
                   style={{
@@ -756,8 +654,7 @@ export default function Page() {
                     marginBottom: 12,
                   }}
                 >
-
-                  <label>
+                  <label htmlFor="audit-search">
                     Search
                   </label>
 
@@ -767,66 +664,44 @@ export default function Page() {
                       gap: 7,
                     }}
                   >
-
                     <input
+                      id="audit-search"
                       value={q}
-                      onChange={(e) =>
-                        setQ(e.target.value)
+                      onChange={(event) =>
+                        setQ(event.target.value)
                       }
                       placeholder="Search transactions"
                     />
 
                     <button
-                      className="btn secondary"
                       type="button"
+                      className="btn secondary"
+                      aria-label="Search"
                     >
                       <FontAwesomeIcon
                         icon={faMagnifyingGlass}
                       />
                     </button>
-
                   </div>
-
                 </div>
 
                 <div className="tablewrap">
-
                   <table className="table">
-
                     <thead>
-
                       <tr>
-
-                        <th>
-                          Date
-                        </th>
-
-                        <th>
-                          Type
-                        </th>
-
-                        <th>
-                          Description
-                        </th>
-
-                        <th>
-                          Amount
-                        </th>
-
-                        <th>
-                          Actor
-                        </th>
-
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Actor</th>
                       </tr>
-
                     </thead>
 
                     <tbody>
-
                       {tx
-                        .filter((item) =>
+                        .filter((transaction) =>
                           (
-                            item.description ||
+                            transaction.description ||
                             ""
                           )
                             .toLowerCase()
@@ -834,51 +709,60 @@ export default function Page() {
                               q.toLowerCase()
                             )
                         )
-                        .map((item) => (
+                        .map((transaction, index) => (
                           <tr
-                            key={item._id}
+                            key={
+                              transaction._id ??
+                              `${transaction.createdAt}-${index}`
+                            }
                           >
-
                             <td>
-                              {new Date(
-                                item.createdAt
-                              ).toLocaleString()}
+                              {transaction.createdAt
+                                ? new Date(
+                                    transaction.createdAt
+                                  ).toLocaleString()
+                                : "—"}
                             </td>
 
                             <td>
-                              {item.type}
+                              {transaction.type}
                             </td>
 
                             <td>
-                              {item.description}
+                              {
+                                transaction.description
+                              }
                             </td>
 
                             <td>
                               {money(
-                                item.amount
+                                transaction.amount
                               )}
                             </td>
 
                             <td>
-                              {item.actorEmail ||
-                                "—"}
+                              {
+                                transaction.actorEmail ||
+                                "—"
+                              }
                             </td>
-
                           </tr>
                         ))}
 
+                      {tx.length === 0 && (
+                        <tr>
+                          <td colSpan={5}>
+                            No audit records found.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
-
                   </table>
-
                 </div>
-
               </div>
             </>
           )}
-
         </main>
-
       </section>
 
       {/* ================= MODAL ================= */}
@@ -887,9 +771,7 @@ export default function Page() {
         <Modal
           title={
             modal === "room"
-              ? editing
-                ? "Edit Room"
-                : "Room"
+              ? "Room"
               : modal === "booking"
               ? "New Booking"
               : modal === "bar"
@@ -898,19 +780,15 @@ export default function Page() {
           }
           close={closeModal}
         >
-
           {modal === "room" && (
             <RoomForm
               form={form}
               setForm={setForm}
               save={() =>
-                save(
-                  "/api/rooms",
-                  form
-                )
+                void save("/api/rooms", form)
               }
-              close={closeModal}
               isAdmin={isAdmin}
+              close={closeModal}
             />
           )}
 
@@ -920,10 +798,7 @@ export default function Page() {
               setForm={setForm}
               rooms={rooms}
               save={() =>
-                save(
-                  "/api/bookings",
-                  form
-                )
+                void save("/api/bookings", form)
               }
               close={closeModal}
             />
@@ -939,10 +814,7 @@ export default function Page() {
               form={form}
               setForm={setForm}
               save={() =>
-                save(
-                  "/api/bar",
-                  form
-                )
+                void save("/api/bar", form)
               }
               labels={[
                 "Item / drink",
@@ -962,10 +834,7 @@ export default function Page() {
               form={form}
               setForm={setForm}
               save={() =>
-                save(
-                  "/api/expenses",
-                  form
-                )
+                void save("/api/expenses", form)
               }
               labels={[
                 "Description",
@@ -974,25 +843,18 @@ export default function Page() {
               close={closeModal}
             />
           )}
-
         </Modal>
       )}
 
       {/* TOAST */}
-
-      {toast && (
-        <div className="toast">
-          {toast}
-        </div>
-      )}
-
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
 
-/* =====================================================
+/* =========================
    METRIC CARD
-===================================================== */
+========================= */
 
 function MetricCard({
   label,
@@ -1003,20 +865,15 @@ function MetricCard({
 }) {
   return (
     <div className="card">
-      <div className="metriclabel">
-        {label}
-      </div>
-
-      <div className="metric">
-        {value}
-      </div>
+      <div className="metriclabel">{label}</div>
+      <div className="metric">{value}</div>
     </div>
   );
 }
 
-/* =====================================================
-   HEADER
-===================================================== */
+/* =========================
+   SECTION HEADER
+========================= */
 
 function Head({
   title,
@@ -1029,39 +886,31 @@ function Head({
 }) {
   return (
     <div className="sectionhead">
-
       <div>
-
-        <h1 className="title">
-          {title}
-        </h1>
+        <h1 className="title">{title}</h1>
 
         <div className="subtitle">
           Manage and verify records
         </div>
-
       </div>
 
       {add && (
         <button
+          type="button"
           className="btn"
           onClick={add}
         >
-          <FontAwesomeIcon
-            icon={faPlus}
-          />
-
-          {label || "Add"}
+          <FontAwesomeIcon icon={faPlus} />
+          {label}
         </button>
       )}
-
     </div>
   );
 }
 
-/* =====================================================
+/* =========================
    MODAL
-===================================================== */
+========================= */
 
 function Modal({
   title,
@@ -1076,46 +925,34 @@ function Modal({
     <div
       className="modalback"
       onMouseDown={(event) => {
-        if (
-          event.target ===
-          event.currentTarget
-        ) {
+        if (event.target === event.currentTarget) {
           close();
         }
       }}
     >
-
       <div className="modal">
-
         <div className="modalhead">
-
-          <h2>
-            {title}
-          </h2>
+          <h2>{title}</h2>
 
           <button
+            type="button"
             className="iconbtn"
             onClick={close}
-            type="button"
+            aria-label="Close"
           >
-            <FontAwesomeIcon
-              icon={faXmark}
-            />
+            <FontAwesomeIcon icon={faXmark} />
           </button>
-
         </div>
 
         {children}
-
       </div>
-
     </div>
   );
 }
 
-/* =====================================================
+/* =========================
    SIMPLE FORM
-===================================================== */
+========================= */
 
 function SimpleForm({
   fields,
@@ -1127,9 +964,9 @@ function SimpleForm({
 }: {
   fields: string[];
   form: FormData;
-  setForm: (
-    value: FormData
-  ) => void;
+  setForm: React.Dispatch<
+    React.SetStateAction<FormData>
+  >;
   save: () => void;
   labels: string[];
   close: () => void;
@@ -1137,155 +974,138 @@ function SimpleForm({
   return (
     <>
       <div className="form">
-
         {fields.map((field, index) => (
-          <div
-            className="field"
-            key={field}
-          >
-
-            <label>
-              {labels[index]}
+          <div className="field" key={field}>
+            <label htmlFor={`form-${field}`}>
+              {labels[index] ?? field}
             </label>
 
             <input
+              id={`form-${field}`}
               type={
                 field === "amount"
                   ? "number"
                   : "text"
               }
-              value={
-                form[field] ?? ""
-              }
+              value={String(form[field] ?? "")}
               onChange={(event) =>
-                setForm({
-                  ...form,
-                  [field]:
-                    event.target.value,
-                })
+                setForm((previous) => ({
+                  ...previous,
+                  [field]: event.target.value,
+                }))
               }
             />
-
           </div>
         ))}
-
       </div>
 
       <br />
 
       <div className="actions">
-
         <button
+          type="button"
           className="btn secondary"
           onClick={close}
-          type="button"
         >
-          <FontAwesomeIcon
-            icon={faArrowLeft}
-          />
-
+          <FontAwesomeIcon icon={faArrowLeft} />
           Back
         </button>
 
         <button
+          type="button"
           className="btn"
           onClick={save}
-          type="button"
         >
           Save
         </button>
-
       </div>
     </>
   );
 }
 
-/* =====================================================
+/* =========================
    ROOM FORM
-===================================================== */
+========================= */
 
 function RoomForm({
   form,
   setForm,
   save,
-  close,
   isAdmin,
+  close,
 }: {
   form: FormData;
-  setForm: (
-    value: FormData
-  ) => void;
+  setForm: React.Dispatch<
+    React.SetStateAction<FormData>
+  >;
   save: () => void;
-  close: () => void;
   isAdmin: boolean;
+  close: () => void;
 }) {
+  function deleteRoom() {
+    window.alert(
+      "Delete endpoint is not connected yet. The room can be edited safely."
+    );
+  }
+
   return (
     <>
       <div className="form">
-
         <div className="field">
-
-          <label>
+          <label htmlFor="room-number">
             Room Number
           </label>
 
           <input
-            value={form.number ?? ""}
+            id="room-number"
+            value={String(form.number ?? "")}
             onChange={(event) =>
-              setForm({
-                ...form,
-                number:
-                  event.target.value,
-              })
+              setForm((previous) => ({
+                ...previous,
+                number: event.target.value,
+              }))
             }
           />
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="room-price">
             Price (TZS)
           </label>
 
           <input
+            id="room-price"
             type="number"
-            value={
+            min="0"
+            value={String(
               form.price ?? 200000
-            }
+            )}
             onChange={(event) =>
-              setForm({
-                ...form,
-                price:
-                  Number(
-                    event.target.value
-                  ),
-              })
+              setForm((previous) => ({
+                ...previous,
+                price: event.target.value,
+              }))
             }
           />
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="room-status">
             Status
           </label>
 
           <select
-            value={
-              form.status ||
-              "VACANT"
-            }
+            id="room-status"
+            value={String(
+              form.status ?? "VACANT"
+            )}
             onChange={(event) =>
-              setForm({
-                ...form,
-                status:
-                  event.target.value,
-              })
+              setForm((previous) => ({
+                ...previous,
+                status: event.target.value,
+              }))
             }
           >
-
             <option value="VACANT">
               VACANT
             </option>
@@ -1293,64 +1113,48 @@ function RoomForm({
             <option value="OCCUPIED">
               OCCUPIED
             </option>
-
           </select>
-
         </div>
-
       </div>
 
       <br />
 
       <div className="actions">
-
         <button
+          type="button"
           className="btn secondary"
           onClick={close}
-          type="button"
         >
-          <FontAwesomeIcon
-            icon={faArrowLeft}
-          />
-
+          <FontAwesomeIcon icon={faArrowLeft} />
           Back
         </button>
 
         <button
+          type="button"
           className="btn"
           onClick={save}
-          type="button"
         >
           Save
         </button>
 
-        {isAdmin &&
-          form._id && (
-            <button
-              className="btn danger"
-              type="button"
-              onClick={() => {
-                alert(
-                  "Delete endpoint is not connected yet. Add a DELETE API before enabling deletion."
-                );
-              }}
-            >
-              <FontAwesomeIcon
-                icon={faTrash}
-              />
-
-              Delete
-            </button>
-          )}
-
+        {isAdmin && form._id && (
+          <button
+            type="button"
+            className="btn danger"
+            onClick={deleteRoom}
+          >
+            <FontAwesomeIcon icon={faTrash} />
+            Delete
+          </button>
+        )}
       </div>
     </>
   );
 }
 
-/* =====================================================
+/* =========================
    BOOKING FORM
-===================================================== */
+========================= */
 
 function BookingForm({
   form,
@@ -1360,233 +1164,202 @@ function BookingForm({
   close,
 }: {
   form: FormData;
-  setForm: (
-    value: FormData
-  ) => void;
+  setForm: React.Dispatch<
+    React.SetStateAction<FormData>
+  >;
   rooms: Room[];
   save: () => void;
   close: () => void;
 }) {
+  const vacantRooms = rooms.filter(
+    (room) => room.status === "VACANT"
+  );
+
   return (
     <>
       <div className="form">
-
         <div className="field">
-
-          <label>
+          <label htmlFor="guest-name">
             Guest Name
           </label>
 
           <input
-            value={form.name ?? ""}
+            id="guest-name"
+            value={String(form.name ?? "")}
             onChange={(event) =>
-              setForm({
-                ...form,
-                name:
-                  event.target.value,
-              })
+              setForm((previous) => ({
+                ...previous,
+                name: event.target.value,
+              }))
             }
           />
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="booking-room">
             Room
           </label>
 
           <select
-            value={form.room ?? ""}
+            id="booking-room"
+            value={String(form.room ?? "")}
             onChange={(event) =>
-              setForm({
-                ...form,
-                room:
-                  event.target.value,
-              })
+              setForm((previous) => ({
+                ...previous,
+                room: event.target.value,
+              }))
             }
           >
-
             <option value="">
               Select room
             </option>
 
-            {rooms
-              .filter(
-                (room) =>
-                  room.status ===
-                  "VACANT"
-              )
-              .map((room) => (
-                <option
-                  key={
-                    room._id ||
-                    room.number
-                  }
-                  value={room.number}
-                >
-                  {room.number}
-                </option>
-              ))}
-
+            {vacantRooms.map((room, index) => (
+              <option
+                key={
+                  room._id ??
+                  `${room.number}-${index}`
+                }
+                value={room.number}
+              >
+                {room.number}
+              </option>
+            ))}
           </select>
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="booking-days">
             Days
           </label>
 
           <input
+            id="booking-days"
             type="number"
             min="1"
-            value={
-              form.days ?? 1
-            }
+            value={String(form.days ?? 1)}
             onChange={(event) =>
-              setForm({
-                ...form,
-                days:
-                  Number(
-                    event.target.value
-                  ),
-              })
+              setForm((previous) => ({
+                ...previous,
+                days: event.target.value,
+              }))
             }
           />
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="booking-discount">
             Discount (TZS)
           </label>
 
           <input
+            id="booking-discount"
             type="number"
             min="0"
-            value={
+            value={String(
               form.discount ?? 0
-            }
+            )}
             onChange={(event) =>
-              setForm({
-                ...form,
-                discount:
-                  Number(
-                    event.target.value
-                  ),
-              })
+              setForm((previous) => ({
+                ...previous,
+                discount: event.target.value,
+              }))
             }
           />
-
         </div>
 
         <div className="field">
-
-          <label>
+          <label htmlFor="booking-paid">
             Payment Received (TZS)
           </label>
 
           <input
+            id="booking-paid"
             type="number"
             min="0"
-            value={
-              form.paid ?? 0
-            }
+            value={String(form.paid ?? 0)}
             onChange={(event) =>
-              setForm({
-                ...form,
-                paid:
-                  Number(
-                    event.target.value
-                  ),
-              })
+              setForm((previous) => ({
+                ...previous,
+                paid: event.target.value,
+              }))
             }
           />
-
         </div>
-
       </div>
 
       <br />
 
       <div className="actions">
-
         <button
+          type="button"
           className="btn secondary"
           onClick={close}
-          type="button"
         >
-          <FontAwesomeIcon
-            icon={faArrowLeft}
-          />
-
+          <FontAwesomeIcon icon={faArrowLeft} />
           Back
         </button>
 
         <button
+          type="button"
           className="btn"
           onClick={save}
-          type="button"
         >
           Confirm & Save
         </button>
-
       </div>
     </>
   );
 }
 
-/* =====================================================
+/* =========================
    REPORTS
-===================================================== */
+========================= */
 
 function Reports({
   setToast,
 }: {
-  setToast: (
-    value: string
-  ) => void;
+  setToast: (message: string) => void;
 }) {
-  async function copy() {
+  async function copyReport() {
     try {
       const response = await fetch(
-        "/api/reports/weekly?format=text"
+        "/api/reports/weekly?format=text",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
       );
 
       if (!response.ok) {
         throw new Error(
-          "Report failed"
+          "Could not generate report"
         );
       }
 
-      const text =
-        await response.text();
+      const text = await response.text();
 
-      await navigator.clipboard.writeText(
-        text
-      );
+      await navigator.clipboard.writeText(text);
 
-      setToast(
-        "Weekly report copied"
-      );
-
-      setTimeout(() => {
-        setToast("");
-      }, 2500);
+      setToast("Weekly report copied");
     } catch (error) {
-      console.error(error);
-
+      console.error("Report copy error:", error);
       setToast(
-        "Could not copy report"
+        "Could not copy weekly report"
       );
-
-      setTimeout(() => {
-        setToast("");
-      }, 2500);
     }
+
+    window.setTimeout(() => {
+      setToast("");
+    }, 2500);
+  }
+
+  function viewReport() {
+    window.open(
+      "/api/reports/weekly",
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   return (
@@ -1594,9 +1367,7 @@ function Reports({
       <Head title="Weekly Reports" />
 
       <div className="grid">
-
         <div className="card">
-
           <div className="metriclabel">
             Audit Cycle
           </div>
@@ -1606,50 +1377,32 @@ function Reports({
           </div>
 
           <p className="subtitle">
-            Automatically arranged
-            by rolling seven-day
-            window.
+            Automatically arranged by rolling
+            seven-day window.
           </p>
-
         </div>
-
       </div>
 
       <div className="card section">
-
         <div className="actions">
-
           <button
-            className="btn"
-            onClick={() =>
-              window.open(
-                "/api/reports/weekly",
-                "_blank"
-              )
-            }
             type="button"
+            className="btn"
+            onClick={viewReport}
           >
-            <FontAwesomeIcon
-              icon={faPrint}
-            />
-
+            <FontAwesomeIcon icon={faPrint} />
             View / Print
           </button>
 
           <button
-            className="btn secondary"
-            onClick={copy}
             type="button"
+            className="btn secondary"
+            onClick={() => void copyReport()}
           >
-            <FontAwesomeIcon
-              icon={faCopy}
-            />
-
+            <FontAwesomeIcon icon={faCopy} />
             Copy Report
           </button>
-
         </div>
-
       </div>
     </>
   );
