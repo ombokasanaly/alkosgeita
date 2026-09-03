@@ -21,9 +21,9 @@ import {
   faMagnifyingGlass,
 } from "@fortawesome/free-solid-svg-icons";
 
-/* =========================
+/* =========================================================
    TYPES
-========================= */
+========================================================= */
 
 type Room = {
   _id?: string;
@@ -33,7 +33,7 @@ type Room = {
   guestName?: string;
 };
 
-type Tx = {
+type Transaction = {
   _id?: string;
   type: string;
   amount: number | string;
@@ -59,25 +59,14 @@ type MenuItem = {
   icon: typeof faGaugeHigh;
 };
 
-type FormData = Record<string, string | number | undefined>;
+type FormData = Record<
+  string,
+  string | number | undefined
+>;
 
-/* =========================
-   HELPERS
-========================= */
-
-const money = (value: number | string | undefined | null): string => {
-  const amount = Number(value ?? 0);
-
-  return new Intl.NumberFormat("en-TZ", {
-    style: "currency",
-    currency: "TZS",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(amount) ? amount : 0);
-};
-
-/* =========================
+/* =========================================================
    MENU
-========================= */
+========================================================= */
 
 const menu: MenuItem[] = [
   {
@@ -117,84 +106,70 @@ const menu: MenuItem[] = [
   },
 ];
 
-/* =========================
+/* =========================================================
+   MONEY
+========================================================= */
+
+function money(
+  value: number | string | undefined | null
+): string {
+  const amount = Number(value ?? 0);
+
+  return new Intl.NumberFormat("en-TZ", {
+    style: "currency",
+    currency: "TZS",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+/* =========================================================
    MAIN PAGE
-========================= */
+========================================================= */
 
 export default function Page() {
   const [email, setEmail] = useState("");
   const [logged, setLogged] = useState(false);
-  const [tab, setTab] = useState("dashboard");
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [tx, setTx] = useState<Tx[]>([]);
+  const [tab, setTab] =
+    useState<string>("dashboard");
 
-  const [summary, setSummary] = useState<Summary>({
-    revenue: 0,
-    expenses: 0,
-    profit: 0,
-    debt: 0,
-    occupancy: 0,
-    occupied: 0,
-    rooms: 5,
-    discounts: 0,
-  });
+  const [rooms, setRooms] =
+    useState<Room[]>([]);
 
-  const [modal, setModal] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
-  const [q, setQ] = useState("");
+  const [transactions, setTransactions] =
+    useState<Transaction[]>([]);
 
-  const [form, setForm] = useState<FormData>({});
+  const [summary, setSummary] =
+    useState<Summary>({
+      revenue: 0,
+      expenses: 0,
+      profit: 0,
+      debt: 0,
+      occupancy: 0,
+      occupied: 0,
+      rooms: 5,
+      discounts: 0,
+    });
 
-  const isAdmin = email.trim().toLowerCase() === "alkos@geita.tz";
+  const [modal, setModal] =
+    useState<string | null>(null);
 
-  /* =========================
-     LOAD DASHBOARD
-  ========================= */
+  const [form, setForm] =
+    useState<FormData>({});
 
-  async function load() {
-    try {
-      const response = await fetch("/api/dashboard", {
-        method: "GET",
-        cache: "no-store",
-      });
+  const [toast, setToast] =
+    useState<string>("");
 
-      if (!response.ok) {
-        throw new Error("Failed to load dashboard");
-      }
+  const [search, setSearch] =
+    useState<string>("");
 
-      const data = await response.json();
+  const isAdmin =
+    email.trim().toLowerCase() ===
+    "alkos@geita.tz";
 
-      if (data.summary) {
-        setSummary({
-          revenue: Number(data.summary.revenue ?? 0),
-          expenses: Number(data.summary.expenses ?? 0),
-          profit: Number(data.summary.profit ?? 0),
-          debt: Number(data.summary.debt ?? 0),
-          occupancy: Number(data.summary.occupancy ?? 0),
-          occupied: Number(data.summary.occupied ?? 0),
-          rooms: Number(data.summary.rooms ?? 5),
-          discounts: Number(data.summary.discounts ?? 0),
-        });
-      }
-
-      setRooms(Array.isArray(data.rooms) ? data.rooms : []);
-      setTx(Array.isArray(data.transactions) ? data.transactions : []);
-    } catch (error) {
-      console.error("Dashboard load error:", error);
-      showToast("Failed to load dashboard");
-    }
-  }
-
-  useEffect(() => {
-    if (logged) {
-      void load();
-    }
-  }, [logged]);
-
-  /* =========================
+  /* =======================================================
      TOAST
-  ========================= */
+  ======================================================= */
 
   function showToast(message: string) {
     setToast(message);
@@ -204,72 +179,113 @@ export default function Page() {
     }, 3000);
   }
 
-  /* =========================
-     SAVE
-  ========================= */
+  /* =======================================================
+     LOAD DASHBOARD
+  ======================================================= */
 
-  async function save(url: string, body: FormData) {
+  async function loadDashboard() {
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...body,
-          actorEmail: email,
-        }),
-      });
-
-      let data: { message?: string; error?: string } = {};
-
-      try {
-        data = await response.json();
-      } catch {
-        data = {};
-      }
+      const response = await fetch(
+        "/api/dashboard",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
 
       if (!response.ok) {
-        showToast(data.error || "Operation failed");
-        return;
+        throw new Error(
+          "Dashboard request failed"
+        );
       }
 
-      showToast(data.message || "Completed successfully");
+      const data =
+        await response.json();
 
-      setModal(null);
-      setForm({});
+      const incomingSummary =
+        data?.summary ?? {};
 
-      await load();
+      setSummary({
+        revenue: Number(
+          incomingSummary.revenue ?? 0
+        ),
+        expenses: Number(
+          incomingSummary.expenses ?? 0
+        ),
+        profit: Number(
+          incomingSummary.profit ?? 0
+        ),
+        debt: Number(
+          incomingSummary.debt ?? 0
+        ),
+        occupancy: Number(
+          incomingSummary.occupancy ?? 0
+        ),
+        occupied: Number(
+          incomingSummary.occupied ?? 0
+        ),
+        rooms: Number(
+          incomingSummary.rooms ?? 5
+        ),
+        discounts: Number(
+          incomingSummary.discounts ?? 0
+        ),
+      });
+
+      setRooms(
+        Array.isArray(data?.rooms)
+          ? data.rooms
+          : []
+      );
+
+      setTransactions(
+        Array.isArray(data?.transactions)
+          ? data.transactions
+          : []
+      );
     } catch (error) {
-      console.error("Save error:", error);
-      showToast("Network error. Please try again.");
+      console.error(
+        "Dashboard error:",
+        error
+      );
+
+      showToast(
+        "Failed to load dashboard"
+      );
     }
   }
 
-  /* =========================
-     OPEN MODAL
-  ========================= */
+  useEffect(() => {
+    if (logged) {
+      void loadDashboard();
+    }
+  }, [logged]);
 
-  function openModal(
-    modalName: string,
-    data: FormData = {}
-  ) {
-    setForm(data);
-    setModal(modalName);
+  /* =======================================================
+     LOGIN
+  ======================================================= */
+
+  function login() {
+    const cleanEmail =
+      email.trim();
+
+    if (
+      !cleanEmail ||
+      !cleanEmail.includes("@")
+    ) {
+      showToast(
+        "Please enter a valid email"
+      );
+      return;
+    }
+
+    setEmail(cleanEmail);
+    setLogged(true);
   }
 
-  /* =========================
-     CLOSE MODAL
-  ========================= */
-
-  function closeModal() {
-    setModal(null);
-    setForm({});
-  }
-
-  /* =========================
+  /* =======================================================
      LOGOUT
-  ========================= */
+  ======================================================= */
 
   function logout() {
     setLogged(false);
@@ -279,53 +295,135 @@ export default function Page() {
     setForm({});
   }
 
-  /* =========================
-     LOGIN
-  ========================= */
+  /* =======================================================
+     OPEN MODAL
+  ======================================================= */
 
-  function handleLogin() {
-    const cleanEmail = email.trim();
-
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      showToast("Enter a valid email address");
-      return;
-    }
-
-    setEmail(cleanEmail);
-    setLogged(true);
+  function openModal(
+    name: string,
+    data: FormData = {}
+  ) {
+    setForm(data);
+    setModal(name);
   }
 
-  /* =========================
+  /* =======================================================
+     CLOSE MODAL
+  ======================================================= */
+
+  function closeModal() {
+    setModal(null);
+    setForm({});
+  }
+
+  /* =======================================================
+     SAVE
+  ======================================================= */
+
+  async function save(
+    url: string,
+    body: FormData
+  ) {
+    try {
+      const response =
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            ...body,
+            actorEmail: email,
+          }),
+        });
+
+      let data: {
+        message?: string;
+        error?: string;
+      } = {};
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok) {
+        showToast(
+          data.error ||
+            "Operation failed"
+        );
+        return;
+      }
+
+      showToast(
+        data.message ||
+          "Saved successfully"
+      );
+
+      closeModal();
+
+      await loadDashboard();
+    } catch (error) {
+      console.error(
+        "Save error:",
+        error
+      );
+
+      showToast(
+        "Network error. Try again."
+      );
+    }
+  }
+
+  /* =======================================================
      LOGIN SCREEN
-  ========================= */
+  ======================================================= */
 
   if (!logged) {
     return (
       <div className="login">
         <div className="loginbox">
           <div className="loginbrand">
-            <div className="loginmark">A</div>
+            <div className="loginmark">
+              A
+            </div>
+
             ALKOS
           </div>
 
-          <h1>Management Portal</h1>
+          <h1>
+            Management Portal
+          </h1>
 
           <p className="subtitle">
-            Secure operations dashboard for apartments, bar sales,
-            expenses and weekly verification.
+            Secure operations dashboard
+            for apartments, bar sales,
+            expenses and weekly
+            verification.
           </p>
 
           <div className="field">
-            <label htmlFor="staff-email">Staff Email</label>
+            <label htmlFor="staff-email">
+              Staff Email
+            </label>
 
             <input
               id="staff-email"
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                setEmail(
+                  event.target.value
+                )
+              }
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleLogin();
+                if (
+                  event.key === "Enter"
+                ) {
+                  login();
                 }
               }}
               placeholder="staff@alkos.tz"
@@ -340,69 +438,108 @@ export default function Page() {
             className="btn"
             style={{
               width: "100%",
-              justifyContent: "center",
+              justifyContent:
+                "center",
             }}
-            onClick={handleLogin}
+            onClick={login}
           >
             Sign In
           </button>
         </div>
 
-        {toast && <div className="toast">{toast}</div>}
+        {toast && (
+          <div className="toast">
+            {toast}
+          </div>
+        )}
       </div>
     );
   }
 
-  /* =========================
-     MAIN APP
-  ========================= */
+  /* =======================================================
+     APP
+  ======================================================= */
 
   return (
     <div className="app">
-      {/* SIDEBAR */}
+
+      {/* =================================================
+          SIDEBAR
+      ================================================= */}
+
       <aside className="sidebar">
         <div className="brand">
-          <div className="brandmark">A</div>
+          <div className="brandmark">
+            A
+          </div>
+
           <span>ALKOS</span>
         </div>
 
         <div className="navgroup">
-          <div className="navlabel">Management</div>
+          <div className="navlabel">
+            Management
+          </div>
 
-          {menu.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={
-                "navbtn " +
-                (tab === item.id ? "active" : "")
-              }
-              onClick={() => setTab(item.id)}
-            >
-              <FontAwesomeIcon icon={item.icon} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {menu.map(
+            (item: MenuItem) => (
+              <button
+                type="button"
+                key={item.id}
+                className={
+                  "navbtn " +
+                  (tab === item.id
+                    ? "active"
+                    : "")
+                }
+                onClick={() =>
+                  setTab(item.id)
+                }
+              >
+                <FontAwesomeIcon
+                  icon={item.icon}
+                />
 
-          <div className="navlabel">Account</div>
+                <span>
+                  {item.label}
+                </span>
+              </button>
+            )
+          )}
+
+          <div className="navlabel">
+            Account
+          </div>
 
           <button
             type="button"
             className="navbtn"
             onClick={logout}
           >
-            <FontAwesomeIcon icon={faRightFromBracket} />
-            <span>Sign out</span>
+            <FontAwesomeIcon
+              icon={faRightFromBracket}
+            />
+
+            <span>
+              Sign out
+            </span>
           </button>
         </div>
       </aside>
 
-      {/* CONTENT */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
+
       <section className="content">
-        {/* TOP BAR */}
+
+        {/* TOPBAR */}
+
         <header className="topbar">
           <div>
-            <b>ALKOS Apartments</b>
+            <b>
+              ALKOS Apartments
+            </b>
 
             <div className="subtitle">
               {isAdmin
@@ -416,46 +553,69 @@ export default function Page() {
             <button
               type="button"
               className="btn secondary"
-              onClick={() => void load()}
+              onClick={() =>
+                void loadDashboard()
+              }
             >
-              <FontAwesomeIcon icon={faClockRotateLeft} />
+              <FontAwesomeIcon
+                icon={faClockRotateLeft}
+              />
+
               Refresh
             </button>
           </div>
         </header>
 
         {/* MAIN */}
+
         <main className="main">
-          {/* ================= DASHBOARD ================= */}
+
+          {/* =================================================
+              DASHBOARD
+          ================================================= */}
 
           {tab === "dashboard" && (
             <>
               <div className="hero">
                 <div className="heroText">
-                  <h1>ALKOS Management</h1>
-                  <p>Luxury meets comfort · Geita</p>
+                  <h1>
+                    ALKOS Management
+                  </h1>
+
+                  <p>
+                    Luxury meets
+                    comfort · Geita
+                  </p>
                 </div>
               </div>
 
               <div className="grid">
                 <MetricCard
                   label="Revenue"
-                  value={money(summary.revenue)}
+                  value={money(
+                    summary.revenue
+                  )}
                 />
 
                 <MetricCard
                   label="Expenses"
-                  value={money(summary.expenses)}
+                  value={money(
+                    summary.expenses
+                  )}
                 />
 
                 <MetricCard
                   label="Net Profit"
-                  value={money(summary.profit)}
+                  value={money(
+                    summary.profit
+                  )}
                 />
 
                 <MetricCard
                   label="Outstanding Debt"
-                  value={money(summary.debt)}
+                  value={money(
+                    summary.debt
+                  )}
                 />
               </div>
 
@@ -472,7 +632,9 @@ export default function Page() {
 
                 <MetricCard
                   label="Discounts Given"
-                  value={money(summary.discounts)}
+                  value={money(
+                    summary.discounts
+                  )}
                 />
 
                 <MetricCard
@@ -483,19 +645,25 @@ export default function Page() {
             </>
           )}
 
-          {/* ================= ROOMS ================= */}
+          {/* =================================================
+              ROOMS
+          ================================================= */}
 
           {tab === "rooms" && (
             <>
               <Head
                 title="Rooms"
-                add={() =>
-                  openModal("room", {
-                    price: 200000,
-                    status: "VACANT",
-                  })
-                }
                 label="Add Room"
+                add={() =>
+                  openModal(
+                    "room",
+                    {
+                      price: 200000,
+                      status:
+                        "VACANT",
+                    }
+                  )
+                }
               />
 
               <div className="card">
@@ -503,70 +671,107 @@ export default function Page() {
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Room</th>
-                        <th>Price</th>
-                        <th>Status</th>
-                        <th>Guest</th>
-                        <th>Actions</th>
+                        <th>
+                          Room
+                        </th>
+
+                        <th>
+                          Price
+                        </th>
+
+                        <th>
+                          Status
+                        </th>
+
+                        <th>
+                          Guest
+                        </th>
+
+                        <th>
+                          Actions
+                        </th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {rooms.length === 0 ? (
+                      {rooms.length ===
+                      0 ? (
                         <tr>
-                          <td colSpan={5}>
-                            No rooms found.
+                          <td
+                            colSpan={5}
+                          >
+                            No rooms
+                            found.
                           </td>
                         </tr>
                       ) : (
-                        rooms.map((room, index) => (
-                          <tr
-                            key={
-                              room._id ??
-                              `${room.number}-${index}`
-                            }
-                          >
-                            <td>{room.number}</td>
-
-                            <td>
-                              {money(room.price)}
-                            </td>
-
-                            <td>
-                              <span
-                                className={
-                                  "badge " +
-                                  (room.status ===
-                                  "OCCUPIED"
-                                    ? "red"
-                                    : "green")
+                        rooms.map(
+                          (
+                            room,
+                            index
+                          ) => (
+                            <tr
+                              key={
+                                room._id ??
+                                `${room.number}-${index}`
+                              }
+                            >
+                              <td>
+                                {
+                                  room.number
                                 }
-                              >
-                                {room.status}
-                              </span>
-                            </td>
+                              </td>
 
-                            <td>
-                              {room.guestName || "—"}
-                            </td>
+                              <td>
+                                {money(
+                                  room.price
+                                )}
+                              </td>
 
-                            <td>
-                              <button
-                                type="button"
-                                className="btn secondary"
-                                onClick={() =>
-                                  openModal("room", {
-                                    ...room,
-                                  })
-                                }
-                              >
-                                <FontAwesomeIcon
-                                  icon={faPen}
-                                />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                              <td>
+                                <span
+                                  className={
+                                    "badge " +
+                                    (room.status ===
+                                    "OCCUPIED"
+                                      ? "red"
+                                      : "green")
+                                  }
+                                >
+                                  {
+                                    room.status
+                                  }
+                                </span>
+                              </td>
+
+                              <td>
+                                {room.guestName ||
+                                  "—"}
+                              </td>
+
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn secondary"
+                                  onClick={() =>
+                                    openModal(
+                                      "room",
+                                      {
+                                        ...room,
+                                      }
+                                    )
+                                  }
+                                >
+                                  <FontAwesomeIcon
+                                    icon={
+                                      faPen
+                                    }
+                                  />
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        )
                       )}
                     </tbody>
                   </table>
@@ -575,76 +780,104 @@ export default function Page() {
             </>
           )}
 
-          {/* ================= BOOKINGS ================= */}
+          {/* =================================================
+              BOOKINGS
+          ================================================= */}
 
           {tab === "bookings" && (
             <>
               <Head
                 title="Guest Billing"
-                add={() => openModal("booking")}
                 label="New Booking"
+                add={() =>
+                  openModal(
+                    "booking"
+                  )
+                }
               />
 
               <div className="card">
                 <p className="subtitle">
-                  Standard room rate: TZS 200,000 per
-                  day. Discounts and unpaid balances are
-                  tracked automatically.
+                  Standard room rate:
+                  TZS 200,000 per day.
+                  Discounts and unpaid
+                  balances are tracked
+                  automatically.
                 </p>
               </div>
             </>
           )}
 
-          {/* ================= BAR ================= */}
+          {/* =================================================
+              BAR
+          ================================================= */}
 
           {tab === "bar" && (
             <>
               <Head
                 title="Bar POS"
-                add={() => openModal("bar")}
                 label="Record Sale"
+                add={() =>
+                  openModal("bar")
+                }
               />
 
               <div className="card">
                 <p className="subtitle">
-                  Record drinks as room charges or
-                  standalone cash sales.
+                  Record drinks as room
+                  charges or standalone
+                  cash sales.
                 </p>
               </div>
             </>
           )}
 
-          {/* ================= EXPENSES ================= */}
+          {/* =================================================
+              EXPENSES
+          ================================================= */}
 
           {tab === "expenses" && (
             <>
               <Head
                 title="Expenses & Payroll"
-                add={() => openModal("expense")}
                 label="Add Expense"
+                add={() =>
+                  openModal(
+                    "expense"
+                  )
+                }
               />
 
               <div className="card">
                 <p className="subtitle">
-                  Operational expenses are included
-                  automatically in weekly profit
-                  calculations.
+                  Operational expenses
+                  are included
+                  automatically in weekly
+                  profit calculations.
                 </p>
               </div>
             </>
           )}
 
-          {/* ================= REPORTS ================= */}
+          {/* =================================================
+              REPORTS
+          ================================================= */}
 
           {tab === "reports" && (
-            <Reports setToast={showToast} />
+            <Reports
+              setToast={showToast}
+            />
           )}
 
-          {/* ================= AUDIT ================= */}
+          {/* =================================================
+              AUDIT
+          ================================================= */}
 
           {tab === "audit" && (
             <>
-              <Head title="Audit Log" />
+              <Head
+                title="Audit Log"
+              />
 
               <div className="card">
                 <div
@@ -660,15 +893,22 @@ export default function Page() {
 
                   <div
                     style={{
-                      display: "flex",
+                      display:
+                        "flex",
                       gap: 7,
                     }}
                   >
                     <input
                       id="audit-search"
-                      value={q}
-                      onChange={(event) =>
-                        setQ(event.target.value)
+                      value={search}
+                      onChange={(
+                        event
+                      ) =>
+                        setSearch(
+                          event
+                            .target
+                            .value
+                        )
                       }
                       placeholder="Search transactions"
                     />
@@ -679,7 +919,9 @@ export default function Page() {
                       aria-label="Search"
                     >
                       <FontAwesomeIcon
-                        icon={faMagnifyingGlass}
+                        icon={
+                          faMagnifyingGlass
+                        }
                       />
                     </button>
                   </div>
@@ -689,70 +931,99 @@ export default function Page() {
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Description</th>
-                        <th>Amount</th>
-                        <th>Actor</th>
+                        <th>
+                          Date
+                        </th>
+
+                        <th>
+                          Type
+                        </th>
+
+                        <th>
+                          Description
+                        </th>
+
+                        <th>
+                          Amount
+                        </th>
+
+                        <th>
+                          Actor
+                        </th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {tx
-                        .filter((transaction) =>
+                      {transactions
+                        .filter(
                           (
-                            transaction.description ||
-                            ""
-                          )
-                            .toLowerCase()
-                            .includes(
-                              q.toLowerCase()
+                            transaction
+                          ) =>
+                            (
+                              transaction.description ||
+                              ""
                             )
+                              .toLowerCase()
+                              .includes(
+                                search
+                                  .toLowerCase()
+                              )
                         )
-                        .map((transaction, index) => (
-                          <tr
-                            key={
-                              transaction._id ??
-                              `${transaction.createdAt}-${index}`
-                            }
-                          >
-                            <td>
-                              {transaction.createdAt
-                                ? new Date(
-                                    transaction.createdAt
-                                  ).toLocaleString()
-                                : "—"}
-                            </td>
-
-                            <td>
-                              {transaction.type}
-                            </td>
-
-                            <td>
-                              {
-                                transaction.description
+                        .map(
+                          (
+                            transaction,
+                            index
+                          ) => (
+                            <tr
+                              key={
+                                transaction._id ??
+                                `${transaction.createdAt}-${index}`
                               }
-                            </td>
+                            >
+                              <td>
+                                {transaction.createdAt
+                                  ? new Date(
+                                      transaction.createdAt
+                                    ).toLocaleString()
+                                  : "—"}
+                              </td>
 
-                            <td>
-                              {money(
-                                transaction.amount
-                              )}
-                            </td>
+                              <td>
+                                {
+                                  transaction.type
+                                }
+                              </td>
 
-                            <td>
-                              {
-                                transaction.actorEmail ||
-                                "—"
-                              }
-                            </td>
-                          </tr>
-                        ))}
+                              <td>
+                                {
+                                  transaction.description
+                                }
+                              </td>
 
-                      {tx.length === 0 && (
+                              <td>
+                                {money(
+                                  transaction.amount
+                                )}
+                              </td>
+
+                              <td>
+                                {
+                                  transaction.actorEmail ||
+                                  "—"
+                                }
+                              </td>
+                            </tr>
+                          )
+                        )}
+
+                      {transactions.length ===
+                        0 && (
                         <tr>
-                          <td colSpan={5}>
-                            No audit records found.
+                          <td
+                            colSpan={5}
+                          >
+                            No audit
+                            records found.
                           </td>
                         </tr>
                       )}
@@ -765,7 +1036,9 @@ export default function Page() {
         </main>
       </section>
 
-      {/* ================= MODAL ================= */}
+      {/* =================================================
+          MODAL
+      ================================================= */}
 
       {modal && (
         <Modal
@@ -785,20 +1058,27 @@ export default function Page() {
               form={form}
               setForm={setForm}
               save={() =>
-                void save("/api/rooms", form)
+                void save(
+                  "/api/rooms",
+                  form
+                )
               }
               isAdmin={isAdmin}
               close={closeModal}
             />
           )}
 
-          {modal === "booking" && (
+          {modal ===
+            "booking" && (
             <BookingForm
               form={form}
               setForm={setForm}
               rooms={rooms}
               save={() =>
-                void save("/api/bookings", form)
+                void save(
+                  "/api/bookings",
+                  form
+                )
               }
               close={closeModal}
             />
@@ -811,35 +1091,42 @@ export default function Page() {
                 "amount",
                 "guest",
               ]}
-              form={form}
-              setForm={setForm}
-              save={() =>
-                void save("/api/bar", form)
-              }
               labels={[
                 "Item / drink",
                 "Amount (TZS)",
                 "Guest / room (optional)",
               ]}
+              form={form}
+              setForm={setForm}
+              save={() =>
+                void save(
+                  "/api/bar",
+                  form
+                )
+              }
               close={closeModal}
             />
           )}
 
-          {modal === "expense" && (
+          {modal ===
+            "expense" && (
             <SimpleForm
               fields={[
                 "description",
                 "amount",
               ]}
-              form={form}
-              setForm={setForm}
-              save={() =>
-                void save("/api/expenses", form)
-              }
               labels={[
                 "Description",
                 "Amount (TZS)",
               ]}
+              form={form}
+              setForm={setForm}
+              save={() =>
+                void save(
+                  "/api/expenses",
+                  form
+                )
+              }
               close={closeModal}
             />
           )}
@@ -847,14 +1134,19 @@ export default function Page() {
       )}
 
       {/* TOAST */}
-      {toast && <div className="toast">{toast}</div>}
+
+      {toast && (
+        <div className="toast">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-/* =========================
+/* =========================================================
    METRIC CARD
-========================= */
+========================================================= */
 
 function MetricCard({
   label,
@@ -865,15 +1157,20 @@ function MetricCard({
 }) {
   return (
     <div className="card">
-      <div className="metriclabel">{label}</div>
-      <div className="metric">{value}</div>
+      <div className="metriclabel">
+        {label}
+      </div>
+
+      <div className="metric">
+        {value}
+      </div>
     </div>
   );
 }
 
-/* =========================
-   SECTION HEADER
-========================= */
+/* =========================================================
+   HEAD
+========================================================= */
 
 function Head({
   title,
@@ -887,7 +1184,9 @@ function Head({
   return (
     <div className="sectionhead">
       <div>
-        <h1 className="title">{title}</h1>
+        <h1 className="title">
+          {title}
+        </h1>
 
         <div className="subtitle">
           Manage and verify records
@@ -900,7 +1199,10 @@ function Head({
           className="btn"
           onClick={add}
         >
-          <FontAwesomeIcon icon={faPlus} />
+          <FontAwesomeIcon
+            icon={faPlus}
+          />
+
           {label}
         </button>
       )}
@@ -908,9 +1210,9 @@ function Head({
   );
 }
 
-/* =========================
+/* =========================================================
    MODAL
-========================= */
+========================================================= */
 
 function Modal({
   title,
@@ -925,7 +1227,10 @@ function Modal({
     <div
       className="modalback"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
           close();
         }
       }}
@@ -940,7 +1245,9 @@ function Modal({
             onClick={close}
             aria-label="Close"
           >
-            <FontAwesomeIcon icon={faXmark} />
+            <FontAwesomeIcon
+              icon={faXmark}
+            />
           </button>
         </div>
 
@@ -950,53 +1257,67 @@ function Modal({
   );
 }
 
-/* =========================
+/* =========================================================
    SIMPLE FORM
-========================= */
+========================================================= */
 
 function SimpleForm({
   fields,
+  labels,
   form,
   setForm,
   save,
-  labels,
   close,
 }: {
   fields: string[];
+  labels: string[];
   form: FormData;
   setForm: React.Dispatch<
     React.SetStateAction<FormData>
   >;
   save: () => void;
-  labels: string[];
   close: () => void;
 }) {
   return (
     <>
       <div className="form">
-        {fields.map((field, index) => (
-          <div className="field" key={field}>
-            <label htmlFor={`form-${field}`}>
-              {labels[index] ?? field}
-            </label>
+        {fields.map(
+          (field, index) => (
+            <div
+              className="field"
+              key={field}
+            >
+              <label
+                htmlFor={`form-${field}`}
+              >
+                {labels[index] ??
+                  field}
+              </label>
 
-            <input
-              id={`form-${field}`}
-              type={
-                field === "amount"
-                  ? "number"
-                  : "text"
-              }
-              value={String(form[field] ?? "")}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  [field]: event.target.value,
-                }))
-              }
-            />
-          </div>
-        ))}
+              <input
+                id={`form-${field}`}
+                type={
+                  field === "amount"
+                    ? "number"
+                    : "text"
+                }
+                value={String(
+                  form[field] ?? ""
+                )}
+                onChange={(event) =>
+                  setForm(
+                    (previous) => ({
+                      ...previous,
+                      [field]:
+                        event.target
+                          .value,
+                    })
+                  )
+                }
+              />
+            </div>
+          )
+        )}
       </div>
 
       <br />
@@ -1007,7 +1328,10 @@ function SimpleForm({
           className="btn secondary"
           onClick={close}
         >
-          <FontAwesomeIcon icon={faArrowLeft} />
+          <FontAwesomeIcon
+            icon={faArrowLeft}
+          />
+
           Back
         </button>
 
@@ -1023,9 +1347,9 @@ function SimpleForm({
   );
 }
 
-/* =========================
+/* =========================================================
    ROOM FORM
-========================= */
+========================================================= */
 
 function RoomForm({
   form,
@@ -1044,7 +1368,7 @@ function RoomForm({
 }) {
   function deleteRoom() {
     window.alert(
-      "Delete endpoint is not connected yet. The room can be edited safely."
+      "Delete endpoint is not connected yet."
     );
   }
 
@@ -1058,12 +1382,18 @@ function RoomForm({
 
           <input
             id="room-number"
-            value={String(form.number ?? "")}
+            value={String(
+              form.number ?? ""
+            )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                number: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  number:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1081,10 +1411,14 @@ function RoomForm({
               form.price ?? 200000
             )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                price: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  price:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1097,13 +1431,18 @@ function RoomForm({
           <select
             id="room-status"
             value={String(
-              form.status ?? "VACANT"
+              form.status ??
+                "VACANT"
             )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                status: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  status:
+                    event.target
+                      .value,
+                })
+              )
             }
           >
             <option value="VACANT">
@@ -1125,7 +1464,10 @@ function RoomForm({
           className="btn secondary"
           onClick={close}
         >
-          <FontAwesomeIcon icon={faArrowLeft} />
+          <FontAwesomeIcon
+            icon={faArrowLeft}
+          />
+
           Back
         </button>
 
@@ -1143,7 +1485,10 @@ function RoomForm({
             className="btn danger"
             onClick={deleteRoom}
           >
-            <FontAwesomeIcon icon={faTrash} />
+            <FontAwesomeIcon
+              icon={faTrash}
+            />
+
             Delete
           </button>
         )}
@@ -1152,9 +1497,9 @@ function RoomForm({
   );
 }
 
-/* =========================
+/* =========================================================
    BOOKING FORM
-========================= */
+========================================================= */
 
 function BookingForm({
   form,
@@ -1171,9 +1516,12 @@ function BookingForm({
   save: () => void;
   close: () => void;
 }) {
-  const vacantRooms = rooms.filter(
-    (room) => room.status === "VACANT"
-  );
+  const vacantRooms =
+    rooms.filter(
+      (room) =>
+        room.status ===
+        "VACANT"
+    );
 
   return (
     <>
@@ -1185,12 +1533,18 @@ function BookingForm({
 
           <input
             id="guest-name"
-            value={String(form.name ?? "")}
+            value={String(
+              form.name ?? ""
+            )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                name: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  name:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1202,29 +1556,37 @@ function BookingForm({
 
           <select
             id="booking-room"
-            value={String(form.room ?? "")}
+            value={String(
+              form.room ?? ""
+            )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                room: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  room:
+                    event.target
+                      .value,
+                })
+              )
             }
           >
             <option value="">
               Select room
             </option>
 
-            {vacantRooms.map((room, index) => (
-              <option
-                key={
-                  room._id ??
-                  `${room.number}-${index}`
-                }
-                value={room.number}
-              >
-                {room.number}
-              </option>
-            ))}
+            {vacantRooms.map(
+              (room, index) => (
+                <option
+                  key={
+                    room._id ??
+                    `${room.number}-${index}`
+                  }
+                  value={room.number}
+                >
+                  {room.number}
+                </option>
+              )
+            )}
           </select>
         </div>
 
@@ -1237,12 +1599,18 @@ function BookingForm({
             id="booking-days"
             type="number"
             min="1"
-            value={String(form.days ?? 1)}
+            value={String(
+              form.days ?? 1
+            )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                days: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  days:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1260,10 +1628,14 @@ function BookingForm({
               form.discount ?? 0
             )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                discount: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  discount:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1277,12 +1649,18 @@ function BookingForm({
             id="booking-paid"
             type="number"
             min="0"
-            value={String(form.paid ?? 0)}
+            value={String(
+              form.paid ?? 0
+            )}
             onChange={(event) =>
-              setForm((previous) => ({
-                ...previous,
-                paid: event.target.value,
-              }))
+              setForm(
+                (previous) => ({
+                  ...previous,
+                  paid:
+                    event.target
+                      .value,
+                })
+              )
             }
           />
         </div>
@@ -1296,7 +1674,10 @@ function BookingForm({
           className="btn secondary"
           onClick={close}
         >
-          <FontAwesomeIcon icon={faArrowLeft} />
+          <FontAwesomeIcon
+            icon={faArrowLeft}
+          />
+
           Back
         </button>
 
@@ -1312,40 +1693,52 @@ function BookingForm({
   );
 }
 
-/* =========================
+/* =========================================================
    REPORTS
-========================= */
+========================================================= */
 
 function Reports({
   setToast,
 }: {
-  setToast: (message: string) => void;
+  setToast: (
+    message: string
+  ) => void;
 }) {
   async function copyReport() {
     try {
-      const response = await fetch(
-        "/api/reports/weekly?format=text",
-        {
-          method: "GET",
-          cache: "no-store",
-        }
-      );
+      const response =
+        await fetch(
+          "/api/reports/weekly?format=text",
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
 
       if (!response.ok) {
         throw new Error(
-          "Could not generate report"
+          "Report request failed"
         );
       }
 
-      const text = await response.text();
+      const text =
+        await response.text();
 
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(
+        text
+      );
 
-      setToast("Weekly report copied");
-    } catch (error) {
-      console.error("Report copy error:", error);
       setToast(
-        "Could not copy weekly report"
+        "Weekly report copied"
+      );
+    } catch (error) {
+      console.error(
+        "Report error:",
+        error
+      );
+
+      setToast(
+        "Could not copy report"
       );
     }
 
@@ -1377,8 +1770,8 @@ function Reports({
           </div>
 
           <p className="subtitle">
-            Automatically arranged by rolling
-            seven-day window.
+            Automatically arranged by
+            rolling seven-day window.
           </p>
         </div>
       </div>
@@ -1390,16 +1783,24 @@ function Reports({
             className="btn"
             onClick={viewReport}
           >
-            <FontAwesomeIcon icon={faPrint} />
+            <FontAwesomeIcon
+              icon={faPrint}
+            />
+
             View / Print
           </button>
 
           <button
             type="button"
             className="btn secondary"
-            onClick={() => void copyReport()}
+            onClick={() =>
+              void copyReport()
+            }
           >
-            <FontAwesomeIcon icon={faCopy} />
+            <FontAwesomeIcon
+              icon={faCopy}
+            />
+
             Copy Report
           </button>
         </div>
